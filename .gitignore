@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 is_hot_tomtom_segment_status_with_velocity/
 is_hot_tomtom_segment_status3/
+ImageResults/
