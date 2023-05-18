@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.cluster.hierarchy as shc
 import matplotlib.patheffects as PathEffects
+import json
 
 
 from sklearn.cluster import DBSCAN
@@ -306,12 +307,12 @@ def get_label_with_DBSAN(period_df, is_test = False):
     return label_result
 
 
-parammeters = {
-    "period": ["period_16_55"],
-    "weekday": [1],
-    "district": ["quan_binh_tan", "quan_10", "quan_tan_phu"],
-#     "is_morning": [1]
-}
+# parammeters = {
+#     "period": ["period_16_55"],
+#     "weekday": [1],
+#     "district": ["quan_binh_tan", "quan_10", "quan_tan_phu"],
+# #     "is_morning": [1]
+# }
 
 def MinMaxScale_function(period_df):
     period_df_time = period_df.drop(["period", "weekday", "temperature", "segment_id", "isHot", "weather", "base_LOS", "district", "is_morning", "date"], axis=1, errors = 'raise')
@@ -322,7 +323,7 @@ def MinMaxScale_function(period_df):
 
 def get_period_df(parameters, total_df): 
     period_df = total_df.copy()
-    for key, value in parammeters.items():
+    for key, value in parameters.items():
         if value is not None:
             period_df = period_df.loc[period_df[key].isin(value)]
     return period_df
@@ -333,9 +334,22 @@ def get_results(parameters, total_df):
     period_df["label"] = kmeans_labels
     return period_df
 
+def get_seg_dicts_infor():
+    seg_dicts = {}
+    with open('selected_points.json', 'r') as f:
+        cover_points = json.load(f)
+    for record in cover_points:
+        for seg_item in record["segment_ids"]:
+            seg_dicts[seg_item["segment_id"]] = {
+                "district": record["district"],
+                "lat": seg_item["lat"],
+                "lng": seg_item["lng"]
+            }
+    return seg_dicts
+
 if __name__ == "__main__":
     total_df = processing_data()
-    print(get_results(parammeters, total_df).info())
+    # print(get_results(parammeters, total_df).info())
 
 
 

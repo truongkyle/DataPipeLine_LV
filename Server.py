@@ -1,6 +1,7 @@
 from typing import Optional, List
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 import Data_Mining
 import json
 
@@ -14,6 +15,13 @@ class Parameter(BaseModel):
 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 total_df = Data_Mining.processing_data()
 
 
@@ -31,7 +39,6 @@ async def find_optimal_k(parameter: Parameter):
     global total_df
     parameter = parameter.dict()
     period_df = Data_Mining.get_period_df(parameter, total_df)
-    print(period_df.info())
     scaled_df = Data_Mining.MinMaxScale_function(period_df)
     K_number = Data_Mining.find_optimal_k(scaled_df)
     
@@ -44,15 +51,24 @@ async def get_dendograms(parameter: Parameter):
 @app.post("/data_mining/K_means")
 async def K_means(parameter: Parameter):
     global total_df
+    seg_dicts = Data_Mining.get_seg_dicts_infor()
     total_df = Data_Mining.processing_data()
     parameter = parameter.dict()
     result_df = Data_Mining.get_results(parameter, total_df)
     group_result = result_df.groupby(["label"]).agg({"segment_id":["unique","count"], "tomtom_velocity":["max","min"], "duration":["max","min"]})
     result_list = []
     for item_label in result_df['label'].unique():
+        seg_info_list = []
+        for seg_id in group_result.segment_id.unique[item_label]:
+            temp_dict = {
+                "segment_id": int(seg_id),
+                "position": [seg_dicts[seg_id]["lat"], seg_dicts[seg_id]["lng"]]
+            }
+            seg_info_list.append(temp_dict)
         temp_item={
             "label": int(item_label),
-            "seg_id_list": group_result.segment_id.unique[item_label].astype(int).tolist(),
+            # "seg_id_list": group_result.segment_id.unique[item_label].astype(int).tolist(),
+            "seg_info_list": seg_info_list,
             "velocity":{
                 "max": int(group_result.tomtom_velocity["max"][item_label]),
                 "min": int(group_result.tomtom_velocity["min"][item_label])
@@ -64,6 +80,6 @@ async def K_means(parameter: Parameter):
         }
         result_list.append(temp_item)
     
-    result = {"data": result_list}
+    result = result_list
     return result
 
