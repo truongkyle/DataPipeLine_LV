@@ -161,3 +161,8 @@ cython_debug/
 is_hot_tomtom_segment_status_with_velocity/
 is_hot_tomtom_segment_status3/
 ImageResults/
+tom-tom-data/
+is_hot_tomtom_segment_status_with_velocity_2/
+result_df/
+result_df2/
+train_tom_tom_data_with_velocity/

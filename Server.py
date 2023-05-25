@@ -60,9 +60,11 @@ async def K_means(parameter: Parameter):
     for item_label in result_df['label'].unique():
         seg_info_list = []
         for seg_id in group_result.segment_id.unique[item_label]:
+            temp_df = result_df.loc[result_df.segment_id == seg_id].iloc[0]
             temp_dict = {
                 "segment_id": int(seg_id),
-                "position": [seg_dicts[seg_id]["lat"], seg_dicts[seg_id]["lng"]]
+                "position": [temp_df["lat"], temp_df["lng"]],
+                "district": temp_df["district"]
             }
             seg_info_list.append(temp_dict)
         temp_item={
