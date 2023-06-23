@@ -1,5 +1,3 @@
-
-
 import boto3
 import config as CONFIG
 import pandas as pd
@@ -25,8 +23,7 @@ import numpy as np
 from resources import ConfigS3
 define = ConfigS3()
 
-TRAIN_DIR = 'IS_HOT_TOMTOM'
-# TRAIN_DIR = 'IS_NOT_HOT_TOMTOM'
+TRAIN_DIR = './03_06_IS_HOT_TOMTOM2/'
 
 def processing_data():
     global TRAIN_DIR
@@ -41,6 +38,7 @@ def processing_data():
     # total_df['base_LOS']= label_encoder.fit_transform(total_df['base_LOS'])
     total_df['isHot'] = label_encoder.fit_transform(total_df['isHot'])
     total_df['weather'] = label_encoder.fit_transform(total_df['weather'])
+    total_df['base_LOS']= label_encoder.fit_transform(total_df['base_LOS'])
 
     return total_df
 
@@ -103,6 +101,8 @@ def find_optimal_k(X, is_test=False):
     diff = np.diff(scores_elbow)
     elbow_index = np.argmax(diff)
     silhouette_index = np.argmax(scores_silhouette)
+    scores_silhouette = np.array([round(x, 5) for x in scores_silhouette])
+    diff = np.array([round(x, 5) for x in diff])
     scores_elbow_silhouette = diff/scores_silhouette[:-1]
     n_numbers = range(2, 11)
     optimal_K = n_numbers[np.argmax(scores_elbow_silhouette)]
@@ -244,32 +244,36 @@ def test_dbscan(X):
 # In[21]:
 
 
-def get_label_with_Agglomerative(period_df,  number_clusters=4, is_test=False):
+def get_label_with_Agglomerative(period_df, cluster_colums, number_clusters=4, is_test=True):
     period_df_time = period_df.copy()
     for column_item in period_df_time.columns:
-        if column_item not in ["tomtom_velocity", "duration"]:
+        if column_item not in cluster_colums:
             period_df_time.drop([column_item], axis=1, inplace = True)
     scaled_df = MinMaxScaler().fit_transform(period_df_time)
     _plot_dendograms(scaled_df)
     label_result = AgglomerativeClustering_function(scaled_df, number_clusters)
     if is_test:
-        _plot_kmean_scatter(scaled_df, label_result)
+        _plot_kmean_scatter(period_df_time.values, label_result)
     return label_result
 
 
 # In[22]:
 
 
-def get_label(period_df, is_test=False):
+def get_label(period_df, cluster_colums, is_test=False):
     period_df_time = period_df.copy()
+    print(period_df_time.columns)
+    print(cluster_colums)
     for column_item in period_df_time.columns:
-        if column_item not in ["tomtom_velocity", "duration"]:
+        if column_item not in cluster_colums:
             period_df_time.drop([column_item], axis=1, inplace = True)
+    print(period_df_time.shape)
     scaled_df = MinMaxScaler().fit_transform(period_df_time)
     k_number = find_optimal_k(scaled_df, is_test)
     label_result = k_mean_function(scaled_df, k_number)
     if is_test:
         #         X_tsne = TSNE(n_components=2, random_state=123).fit_transform(scaled_df)
+        print(period_df_time.values.shape)
         _plot_kmean_scatter(period_df_time.values, label_result)
     return label_result
 
@@ -277,10 +281,10 @@ def get_label(period_df, is_test=False):
 # In[23]:
 
 
-def get_label_with_DBSAN(period_df, is_test=False):
+def get_label_with_DBSAN(period_df, cluster_colums, is_test=False):
     period_df_time = period_df.copy()
     for column_item in period_df_time.columns:
-        if column_item not in ["tomtom_velocity", "duration"]:
+        if column_item not in cluster_colums:
             period_df_time.drop([column_item], axis=1, inplace = True)
     scaled_df = MinMaxScaler().fit_transform(period_df_time)
     a = DBSAN_function(period_df_time)
@@ -297,10 +301,10 @@ def get_label_with_DBSAN(period_df, is_test=False):
 # #     "is_morning": [1]
 # }
 
-def MinMaxScale_function(period_df):
+def MinMaxScale_function(period_df, cluster_colums):
     period_df_time = period_df.copy()
     for column_item in period_df_time.columns:
-        if column_item not in ["tomtom_velocity", "duration"]:
+        if column_item not in cluster_colums:
             period_df_time.drop([column_item], axis=1, inplace = True)
     scaled_df = MinMaxScaler().fit_transform(period_df_time)
     return scaled_df
@@ -314,21 +318,28 @@ def get_period_df(parameters, total_df):
     return period_df
 
 
-def get_results(parameters, total_df):
+def get_results(parameters, total_df, cluster_colums = ['tomtom_velocity', 'duration_velocity'], new_column_name = 'velocity_label'):
     period_df = get_period_df(parameters, total_df)
-    kmeans_labels = get_label(period_df)
-    period_df["label"] = kmeans_labels
-    return period_df
+    kmeans_labels = get_label(period_df, cluster_colums, is_test=False)
+    period_df[new_column_name] = kmeans_labels
+    return period_df, kmeans_labels
+
+def get_results_with_Agglomerative(parameters, total_df, number_clusters = 8, cluster_colums = ['tomtom_velocity', 'duration_velocity'], new_column_name = 'velocity_label'):
+    period_df = get_period_df(parameters, total_df)
+    agglomerative_labels = get_label_with_Agglomerative(period_df, cluster_colums, number_clusters, is_test=True)
+    period_df[new_column_name] = agglomerative_labels
+    return period_df, agglomerative_labels
 
 
 def get_seg_dicts_infor():
     seg_dicts = {}
-    seg_info_df = pd.read_csv("./selections_points.csv", index_col=0)
-    for i in range(len(seg_info_df)):
-        temp_df = seg_info_df.iloc[i]
-        seg_dicts[temp_df["segment_id"]] = {
-                "district": temp_df["district"],
-                "lat": temp_df["lat"],
-                "lng": temp_df["lng"]
+    with open('selected_points.json', 'r') as f:
+        cover_points = json.load(f)
+    for record in cover_points:
+        for seg_item in record["segment_ids"]:
+            seg_dicts[seg_item["segment_id"]] = {
+                "district": record["district"],
+                "lat": seg_item["lat"],
+                "lng": seg_item["lng"]
             }
     return seg_dicts
